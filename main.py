@@ -2,23 +2,11 @@
 # pylint: disable=unused-argument, wrong-import-position
 # This program is dedicated to the public domain under the CC0 license.
 
-"""Simple inline keyboard bot with multiple CallbackQueryHandlers.
-This Bot uses the Application class to handle the bot.
-First, a few callback functions are defined as callback query handler. Then, those functions are
-passed to the Application and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-Usage:
-Example of a bot that uses inline keyboard that has multiple CallbackQueryHandlers arranged in a
-ConversationHandler.
-Send /start to initiate the conversation.
-Press Ctrl-C on the command line to stop the bot.
-"""
+import inspect
 import logging
 
 from telegram import __version__ as TG_VER
-
-from data import ContractData
-
+from pprint import pprint
 try:
     from telegram import __version_info__
 except ImportError:
@@ -30,7 +18,7 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
         f"{TG_VER} version of this example, "
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Bot
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -39,27 +27,29 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Stages
 START_ROUTES, END_ROUTES = range(2)
-# Callback data
 ONE, TWO, THREE = range(3)
+request_list = {}
+
+
+def write_param(update, param_name):
+    request_id = f'ch{update.effective_chat.id}us{update.effective_user.id}msg{update.callback_query.message.id}'
+    if request_id in request_list:
+        request_list[request_id][param_name] = update.callback_query.data
+    else:
+        request_list[request_id] = {}
+        request_list[request_id][param_name] = update.callback_query.data
+    pass
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Send message on `/start`."""
-    # Get user that sent /start and log his name
     user = update.message.from_user
     logger.info("Coversation started with ", user.first_name)
-    # Build InlineKeyboard where each button has a displayed text
-    # and a string as callback_data
-    # The keyboard is a list of button rows, where each row is in turn
-    # a list (hence `[[...]]`).
     keyboard = [
         [
             InlineKeyboardButton(text="Составить договор", callback_data=str(ONE)),
@@ -69,18 +59,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Send message with text and appended InlineKeyboard
     await update.message.reply_text("Здравствуйте. Выберите задачу", reply_markup=reply_markup)
-    # Tell ConversationHandler that we're in state `FIRST` now
     return START_ROUTES
 
 
 async def start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Prompt same text & keyboard as `start` does but not as new message"""
-    # Get CallbackQuery from Update
     query = update.callback_query
-    # CallbackQueries need to be answered, even if no notification to the user is needed
-    # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
@@ -91,17 +78,20 @@ async def start_over(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Instead of sending a new message, edit the message that
-    # originated the CallbackQuery. This gives the feeling of an
-    # interactive menu.
+    if query.data == 'new_request':
+        await update.effective_message.reply_text("Здравствуйте. Выберите задачу", reply_markup=reply_markup)
+        return START_ROUTES
     await query.edit_message_text(text="Здравствуйте. Выберите задачу", reply_markup=reply_markup)
     return START_ROUTES
 
 
 async def contract_subject(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
+    # request_list['request_id'] = update.update_id
     keyboard = [
         [
             InlineKeyboardButton(text="Поставка", callback_data='supply'),
@@ -122,10 +112,12 @@ async def contract_subject(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def contract_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
     logger.info("Contract type ", query)
-    print(query.data)
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
+    write_param(update, 'contract_subject')
     await query.answer()
     keyboard = [
         [
@@ -144,9 +136,11 @@ async def contract_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def counterpart_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    write_param(update, 'contract_type')
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
@@ -171,9 +165,11 @@ async def counterpart_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def payment_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    write_param(update, 'counterpart_type')
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
@@ -192,9 +188,11 @@ async def payment_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def edo_presence(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    write_param(update, 'payment_system')
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
@@ -213,13 +211,16 @@ async def edo_presence(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def get_contract(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    write_param(update, 'edo_presence')
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
+    pprint(request_list)
     await query.answer()
     keyboard = [
         [
-            InlineKeyboardButton(text="Продолжить работу", callback_data=str(ONE)),
+            InlineKeyboardButton(text="Продолжить работу", callback_data='new_request'),
         ],
         [
             InlineKeyboardButton(text="Завершить работу", callback_data=str(TWO)),
@@ -231,13 +232,14 @@ async def get_contract(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def repeat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
-            InlineKeyboardButton(text="Продолжить работу", callback_data=str(ONE)),
+            InlineKeyboardButton(text="Продолжить работу", callback_data=str(THREE)),
         ],
         [
             InlineKeyboardButton(text="Завершить работу", callback_data=str(TWO)),
@@ -249,9 +251,10 @@ async def repeat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def explanations(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
@@ -267,13 +270,14 @@ async def explanations(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def remarks_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
-            InlineKeyboardButton(text="Продолжить работу", callback_data=str(ONE)),
+            InlineKeyboardButton(text="Продолжить работу", callback_data='new_request'),
         ],
         [
             InlineKeyboardButton(text="Завершить работу", callback_data=str(TWO)),
@@ -287,13 +291,14 @@ async def remarks_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def expert_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show new choice of buttons"""
     query = update.callback_query
-    print(query.data)
+    logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
+                update.callback_query.message.id,
+                'update', update.update_id, inspect.currentframe().f_code.co_name)
     await query.answer()
     keyboard = [
         [
-            InlineKeyboardButton(text="Продолжить работу", callback_data=str(ONE)),
+            InlineKeyboardButton(text="Продолжить работу", callback_data='new_request'),
         ],
         [
             InlineKeyboardButton(text="Завершить работу", callback_data=str(TWO)),
@@ -307,9 +312,6 @@ async def expert_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Returns `ConversationHandler.END`, which tells the
-    ConversationHandler that the conversation is over.
-    """
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(text="Спасибо за использование нашего бота. Для повторного запуска напишите - /start")
@@ -317,16 +319,8 @@ async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    """Run the bot."""
-    # Create the Application and pass it your bot's token.
     application = Application.builder().token("5730170263:AAEtXblg63a2XWYkv3cc2NzmAlwWBRn2yPE").build()
-
-    # Setup conversation handler with the states FIRST and SECOND
-    # Use the pattern parameter to pass CallbackQueries with specific
-    # data pattern to the corresponding handlers.
-    # ^ means "start of line/string"
-    # $ means "end of line/string"
-    # So ^ABC$ will only allow 'ABC'
+    bot = Bot
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -368,7 +362,7 @@ def main() -> None:
             END_ROUTES: [
                 CallbackQueryHandler(start_over, pattern="^" + str(ONE) + "$"),
                 CallbackQueryHandler(end, pattern="^" + str(TWO) + "$"),
-                CallbackQueryHandler(end, pattern="^" + str(THREE) + "$"),
+                CallbackQueryHandler(start_over, pattern="^" + 'new_request' + "$"),
             ],
         },
         fallbacks=[CommandHandler("start", start)],
