@@ -26,25 +26,23 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
+from data import RequestData
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
+request_data = RequestData()
 START_ROUTES, END_ROUTES = range(2)
 ONE, TWO, THREE = range(3)
-request_list = {}
-
-
-def write_param(update, param_name):
-    request_id = f'ch{update.effective_chat.id}us{update.effective_user.id}msg{update.callback_query.message.id}'
-    if request_id in request_list:
-        request_list[request_id][param_name] = update.callback_query.data
-    else:
-        request_list[request_id] = {}
-        request_list[request_id][param_name] = update.callback_query.data
-    pass
+# def request_data.write_param(update, param_name):
+#     request_id = f'ch{update.effective_chat.id}us{update.effective_user.id}msg{update.callback_query.message.id}'
+#     if request_id in request_list:
+#         request_list[request_id][param_name] = update.callback_query.data
+#     else:
+#         request_list[request_id] = {}
+#         request_list[request_id][param_name] = update.callback_query.data
+#     pass
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -117,7 +115,7 @@ async def contract_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
                 update.callback_query.message.id,
                 'update', update.update_id, inspect.currentframe().f_code.co_name)
-    write_param(update, 'contract_subject')
+    request_data.write_param(update, 'contract_subject')
     await query.answer()
     keyboard = [
         [
@@ -137,7 +135,7 @@ async def contract_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def counterpart_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    write_param(update, 'contract_type')
+    request_data.write_param(update, 'contract_type')
     logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
                 update.callback_query.message.id,
                 'update', update.update_id, inspect.currentframe().f_code.co_name)
@@ -166,7 +164,7 @@ async def counterpart_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def payment_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    write_param(update, 'counterpart_type')
+    request_data.write_param(update, 'counterpart_type')
     logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
                 update.callback_query.message.id,
                 'update', update.update_id, inspect.currentframe().f_code.co_name)
@@ -189,7 +187,7 @@ async def payment_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def edo_presence(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    write_param(update, 'payment_system')
+    request_data.write_param(update, 'payment_system')
     logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
                 update.callback_query.message.id,
                 'update', update.update_id, inspect.currentframe().f_code.co_name)
@@ -212,11 +210,12 @@ async def edo_presence(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def get_contract(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    write_param(update, 'edo_presence')
+    request_data.write_param(update, 'edo_presence')
+    request_data.save_request()
     logger.info(query.data, 'chat', update.effective_chat.id, 'user', update.effective_user.id, 'message',
                 update.callback_query.message.id,
                 'update', update.update_id, inspect.currentframe().f_code.co_name)
-    pprint(request_list)
+    pprint(request_data.contract_requests_list)
     await query.answer()
     keyboard = [
         [
